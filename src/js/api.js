@@ -1,103 +1,156 @@
-// URL base de la API y el "slug" de tu agenda
-export const API = "https://playground.4geeks.com/contact";
-export const AGENDA = "sasha1"; // cámbialo si necesitas otra agenda
+// src/api.js
+// CRUD para Contact API de 4Geeks usando el slug "sasha"
 
-// Lee y formatea el error de la API (intenta JSON, si no, texto)
-const readError = async (res) => {
-  try {
-    const data = await res.json();
-    if (typeof data === "string") return data;
-    if (data?.msg) return data.msg;
-    if (data?.detail)
-      return Array.isArray(data.detail) ? data.detail.join(", ") : data.detail;
-    return JSON.stringify(data);
-  } catch {
+const BASE = "https://playground.4geeks.com/contact";
+const AGENDA_SLUG = "sasha"; // tu agenda
+
+// Utilidad: parsea JSON y lanza errores legibles (muestra detail/msg)
+const jsonOrThrow = async (res) => {
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
     try {
-      return await res.text();
+      const data = JSON.parse(text || "{}");
+      const msg =
+        data?.msg ||
+        data?.message ||
+        (Array.isArray(data?.details) && data.details[0]) ||
+        (Array.isArray(data?.detail) && data.detail.map(d => d.msg).join(", ")) ||
+        `HTTP ${res.status}`;
+      throw new Error(msg);
     } catch {
-      return "Error desconocido";
+      throw new Error(text || `HTTP ${res.status}`);
     }
   }
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {};
+  }
 };
 
-// Normaliza el nombre: si el backend devuelve "name", lo mapeamos a "full_name"
-const normalize = (c) => ({ ...c, full_name: c.full_name ?? c.name ?? "" });
+// Asegura que exista la agenda (POST /agendas/:slug sin body)
+const ensureAgenda = async () => {
+  const listUrl = `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts`;
+  let res = await fetch(listUrl);
 
-// Crea la agenda si no existe (POST /agendas/:slug)
-export const crearAgenda = async () => {
-  const res = await fetch(`${API}/agendas/${AGENDA}`, { method: "POST" });
-  return res.ok; // true si respondió 2xx
-};
-
-// Obtiene los contactos de la agenda; si no existe, la crea y reintenta
-export const getContacts = async () => {
-  let res = await fetch(`${API}/agendas/${AGENDA}/contacts`, {
-    headers: { accept: "application/json" },
-  });
-
-  // Si falla, intenta crear la agenda y vuelve a pedir la lista
-  if (!res.ok) {
-    await crearAgenda();
-    res = await fetch(`${API}/agendas/${AGENDA}/contacts`, {
-      headers: { accept: "application/json" },
-    });
-    if (!res.ok) throw new Error(await readError(res));
+  if (res.status === 404) {
+    const createRes = await fetch(
+      `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}`,
+      { method: "POST" } // sin body ni headers
+    );
+    if (!createRes.ok && createRes.status !== 409) {
+      const txt = await createRes.text().catch(() => "");
+      throw new Error(txt || `No se pudo crear la agenda (HTTP ${createRes.status})`);
+    }
+    // Reintento el listado (probablemente vacío)
+    res = await fetch(listUrl);
   }
 
-  // La API puede devolver array directo o { contacts: [...] }
-  const data = await res.json();
-  const list = Array.isArray(data) ? data : data.contacts || [];
-  return list.map(normalize);
+  if (!res.ok && res.status !== 404) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || `Error listando contactos (HTTP ${res.status})`);
+  }
+
+  return res;
 };
 
-// Crea o actualiza un contacto (POST si no hay id, PUT si hay id)
-export const upsertContact = async (contact, id) => {
-  // El backend espera "name" (no "full_name"), por eso lo mapeamos aquí
-  const payload = {
-    name: (contact.full_name || "").trim(),
-    email: (contact.email || "").trim(),
-    phone: String(contact.phone || "").replace(/\s+/g, ""), // sin espacios
-    address: (contact.address || "").trim(),
-    agenda_slug: AGENDA, // debe coincidir con el slug de la URL
+// Normaliza un contacto del servidor a la forma que usa tu UI
+// --- reemplaza tu normalizeContact por este ---
+const normalizeContact = (c) => ({
+  ...c,
+  id: c.id ?? c.contact_id ?? c.uid ?? c._id, // id robusto
+  full_name: c.full_name || c.name || "",
+});
+
+
+export const getContacts = async () => {
+  const res = await ensureAgenda();
+  if (res.status === 404) return [];
+
+  const data = await jsonOrThrow(res);
+  const list = Array.isArray(data?.contacts)
+    ? data.contacts
+    : Array.isArray(data)
+      ? data
+      : [];
+
+  return list.map(normalizeContact);
+};
+
+// CREATE o UPDATE
+// Reemplaza tu función upsertContact COMPLETA por esta
+export const upsertContact = async (form, id) => {
+  const basePayload = {
+    // La API exige "name" (no full_name)
+    name: (form.full_name || "").trim(),
+    email: (form.email || "").trim(),
+    phone: (form.phone || "").trim(),
+    address: (form.address || "").trim(),
   };
 
-  // Validaciones básicas en front para evitar 422
-  if (!payload.name || !payload.email || !payload.phone || !payload.address) {
-    throw new Error("Todos los campos son obligatorios.");
-  }
-  if (!/\S+@\S+\.\S+/.test(payload.email)) {
-    throw new Error("Email no válido.");
-  }
-  if (!/^\+?\d{6,}$/.test(payload.phone)) {
-    throw new Error("Teléfono debe ser numérico (mín. 6 dígitos).");
+  if (!basePayload.name || !basePayload.email) {
+    throw new Error("Nombre y email son obligatorios.");
   }
 
-  const url = id
-    ? `${API}/agendas/${AGENDA}/contacts/${id}`
-    : `${API}/agendas/${AGENDA}/contacts`;
+  if (id) {
+    // UPDATE con fallback: primero por agenda, luego /contacts/:id
+    // 1) Intento principal: PUT /agendas/:slug/contacts/:id
+    let res = await fetch(
+      `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(basePayload), // NO enviamos agenda_slug
+      }
+    );
 
-  const res = await fetch(url, {
-    method: id ? "PUT" : "POST",
-    headers: { "Content-Type": "application/json", accept: "application/json" },
-    body: JSON.stringify(payload),
-  });
+    // 2) Fallback si 404: PUT /contacts/:id
+    if (res.status === 404) {
+      res = await fetch(`${BASE}/contacts/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(basePayload),
+      });
+    }
 
-  if (!res.ok) {
-    // Imprime el motivo exacto (muy útil cuando la API responde 422)
-    const raw = await res.text();
-    console.error(`[${res.status}] ${url}`, raw);
-    throw new Error(raw || "La API rechazó la operación (422).");
+    const updated = await jsonOrThrow(res);
+    return normalizeContact(updated);
+  } else {
+    // CREATE (ya lo tenías OK)
+    await ensureAgenda();
+    const res = await fetch(
+      `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(basePayload),
+      }
+    );
+    const created = await jsonOrThrow(res);
+    return normalizeContact(created);
   }
-
-  return res.json();
 };
 
-// Elimina un contacto por id (DELETE)
+
 export const deleteContact = async (id) => {
-  const res = await fetch(`${API}/agendas/${AGENDA}/contacts/${id}`, {
-    method: "DELETE",
-    headers: { accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(await readError(res));
+  if (!id) throw new Error("Falta el id del contacto.");
+
+  // 1) Intento principal: por agenda (es el que suele funcionar en este playground)
+  let res = await fetch(
+    `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+
+  // 2) Fallback: por /contacts/:id
+  if (res.status === 404) {
+    res = await fetch(`${BASE}/contacts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || `No se pudo eliminar (HTTP ${res.status})`);
+  }
   return true;
 };

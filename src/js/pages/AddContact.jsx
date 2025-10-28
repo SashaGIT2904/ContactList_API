@@ -65,7 +65,7 @@ const AddContact = () => {
     setEnviando(true);
 
     try {
-      // Evita 422 por email repetido en la agenda
+      // Evita duplicados por email dentro de la agenda
       const existentes = await getContacts();
       const yaExiste = existentes.some(
         (c) =>

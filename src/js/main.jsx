@@ -1,18 +1,16 @@
+// src/js/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-
-// Bootstrap
-import "bootstrap/dist/css/bootstrap.min.css";
-import "bootstrap";
-
-// CSS global
-import "../styles/index.css";
-
-// App con rutas (debe existir en src/js/App.jsx)
+import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const container = document.getElementById("root"); 
+if (!container) throw new Error("No se encontró el contenedor #root en index.html");
+
+ReactDOM.createRoot(container).render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </React.StrictMode>
 );

@@ -44,7 +44,10 @@ const ContactCard = ({ contact, onEdit, onDelete }) => {
         {/* Eliminar: llama al handler con el id del contacto */}
         <button
           className="btn btn-sm btn-outline-danger"
-          onClick={() => onDelete(contact.id)}
+          onClick={() => {
+            console.log("Borrando contacto:", contact); // <-- mira qué id trae
+            onDelete(contact.id);
+          }}
           title="Eliminar"
         >
           🗑️

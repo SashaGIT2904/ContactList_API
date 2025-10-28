@@ -1,24 +1,17 @@
-// App.jsx — Define las rutas de la aplicación (SPA) usando React Router.
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Contact from "./pages/Contact.jsx"; // Vista: lista de contactos
-import AddContact from "./pages/AddContact.jsx"; // Vista: formulario (crear/editar)
+import { Routes, Route, Navigate } from "react-router-dom";
+import Contact from "./pages/Contact.jsx";
+import AddContact from "./pages/AddContact.jsx";
 
-export default function App() {
+const App = () => {
   return (
-    // BrowserRouter habilita navegación sin recargar la página
-    <BrowserRouter>
-      {/* Routes agrupa todas las rutas de la app */}
-      <Routes>
-        {/* Ruta raíz: muestra la lista de contactos */}
-        <Route path="/" element={<Contact />} />
-        {/* Ruta para crear un contacto nuevo */}
-        <Route path="/new" element={<AddContact />} />
-        {/* Ruta para editar, recibe :id del contacto a editar */}
-        <Route path="/edit/:id" element={<AddContact />} />
-        {/* Cualquier ruta no existente redirige a "/" */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<Contact />} />
+      <Route path="/new" element={<AddContact />} />
+      <Route path="/edit/:id" element={<AddContact />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
-}
+};
+
+export default App;
