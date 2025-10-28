@@ -1,27 +1,24 @@
-// Página AddContact: crea o edita un contacto según haya "id" en la URL.
+// Página que sirve para agregar o editar contactos
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import { getContacts, upsertContact } from "../api.js";
 
-// Estado inicial del formulario
+// Empty form sirve para resetear el formulario
 const emptyForm = { full_name: "", email: "", phone: "", address: "" };
 
+// Funcion para agregar o editar contactos
 const AddContact = () => {
-  // Si hay :id en la ruta => estamos editando
   const { id } = useParams();
   const navigate = useNavigate();
-  // Si venimos desde la lista, puede llegar el contacto en location.state
   const location = useLocation();
   const fromState = location.state?.contact;
 
-  // Form, flags de envío y error
+  // Estados de formulario, enviando y error
   const [form, setForm] = useState(emptyForm);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
 
-  // Al montar: prefillea el formulario
-  // 1) si venía en state (navegación desde la lista), úsalo
-  // 2) si recargaron /edit/:id, busca el contacto en la API por id
+  // Carga el formulario con los datos del contacto
   useEffect(() => {
     const load = async () => {
       if (fromState) {
@@ -49,15 +46,15 @@ const AddContact = () => {
       }
     };
     load();
-  }, [id, fromState]);
+  }, [id, fromState]); //se ejecuta cuando cambia el id o fromState
 
-  // Actualiza el form controlado
+  // Actualiza el formulario
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // Guardar: valida duplicado por email y delega en upsertContact (POST/PUT)
+  // Envia el formulario a la API
   const onSubmit = async (e) => {
     e.preventDefault();
     if (enviando) return;
@@ -65,19 +62,19 @@ const AddContact = () => {
     setEnviando(true);
 
     try {
-      // Evita duplicados por email dentro de la agenda
+      
       const existentes = await getContacts();
       const yaExiste = existentes.some(
-        (c) =>
-          (c.email || "").toLowerCase() ===
+        (contacto) =>
+          (contacto.email || "").toLowerCase() ===
             (form.email || "").trim().toLowerCase() &&
-          String(c.id) !== String(id || "")
+          String(contacto.id) !== String(id || "")
       );
       if (yaExiste)
         throw new Error("Ya existe un contacto con ese email en esta agenda.");
 
-      await upsertContact(form, id); // crea si no hay id, actualiza si hay id
-      navigate("/"); // vuelve a la lista
+      await upsertContact(form, id);
+      navigate("/");
     } catch (e) {
       setError(e.message || "No se pudo guardar");
     } finally {
@@ -85,7 +82,7 @@ const AddContact = () => {
     }
   };
 
-  // UI: tarjeta con formulario y feedback básico
+  // Pinta la pagina con el formulario
   return (
     <main className="bg-light min-vh-100 py-5">
       <div className="container">
@@ -152,7 +149,7 @@ const AddContact = () => {
                     />
                   </div>
 
-                  {/* Botón principal con estado de envío */}
+                  {/* Botón para guardar el contacto */}
                   <button
                     type="submit"
                     className="btn btn-primary w-100"
@@ -161,7 +158,7 @@ const AddContact = () => {
                     {enviando ? "Saving…" : "save"}
                   </button>
 
-                  {/* Enlace para volver a la lista */}
+                  {/* Enlace para volver a la lista de contactos */}
                   <div className="mt-2 text-center">
                     <Link to="/">or get back to contacts</Link>
                   </div>

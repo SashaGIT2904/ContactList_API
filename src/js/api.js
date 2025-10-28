@@ -1,10 +1,10 @@
-// src/api.js
-// CRUD para Contact API de 4Geeks usando el slug "sasha"
+
+// CRUD con la API de 4Geeks usando el slug "sasha"
 
 const BASE = "https://playground.4geeks.com/contact";
-const AGENDA_SLUG = "sasha"; // tu agenda
+const AGENDA_SLUG = "sasha"; 
 
-// Utilidad: parsea JSON y lanza errores legibles (muestra detail/msg)
+// Funcion que obtiene el json de la respuesta que viene de la API
 const jsonOrThrow = async (res) => {
   const text = await res.text().catch(() => "");
   if (!res.ok) {
@@ -28,7 +28,7 @@ const jsonOrThrow = async (res) => {
   }
 };
 
-// Asegura que exista la agenda (POST /agendas/:slug sin body)
+// Funcion que asegura que exista la agenda para el slug "sasha" 
 const ensureAgenda = async () => {
   const listUrl = `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts`;
   let res = await fetch(listUrl);
@@ -36,13 +36,13 @@ const ensureAgenda = async () => {
   if (res.status === 404) {
     const createRes = await fetch(
       `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}`,
-      { method: "POST" } // sin body ni headers
+      { method: "POST" } 
     );
     if (!createRes.ok && createRes.status !== 409) {
       const txt = await createRes.text().catch(() => "");
       throw new Error(txt || `No se pudo crear la agenda (HTTP ${createRes.status})`);
     }
-    // Reintento el listado (probablemente vacío)
+    
     res = await fetch(listUrl);
   }
 
@@ -54,15 +54,13 @@ const ensureAgenda = async () => {
   return res;
 };
 
-// Normaliza un contacto del servidor a la forma que usa tu UI
-// --- reemplaza tu normalizeContact por este ---
+// Funcion que normaliza el contacto en la API
 const normalizeContact = (c) => ({
   ...c,
-  id: c.id ?? c.contact_id ?? c.uid ?? c._id, // id robusto
+  id: c.id ?? c.contact_id ?? c.uid ?? c._id, 
   full_name: c.full_name || c.name || "",
 });
-
-
+// Funcion que obtiene la lista de contactos
 export const getContacts = async () => {
   const res = await ensureAgenda();
   if (res.status === 404) return [];
@@ -78,10 +76,10 @@ export const getContacts = async () => {
 };
 
 // CREATE o UPDATE
-// Reemplaza tu función upsertContact COMPLETA por esta
+// Funcion que guarda o actualiza un contacto mediante POST/PUT
 export const upsertContact = async (form, id) => {
   const basePayload = {
-    // La API exige "name" (no full_name)
+    
     name: (form.full_name || "").trim(),
     email: (form.email || "").trim(),
     phone: (form.phone || "").trim(),
@@ -93,18 +91,17 @@ export const upsertContact = async (form, id) => {
   }
 
   if (id) {
-    // UPDATE con fallback: primero por agenda, luego /contacts/:id
-    // 1) Intento principal: PUT /agendas/:slug/contacts/:id
+  
     let res = await fetch(
       `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts/${encodeURIComponent(id)}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(basePayload), // NO enviamos agenda_slug
+        body: JSON.stringify(basePayload), 
       }
     );
 
-    // 2) Fallback si 404: PUT /contacts/:id
+    
     if (res.status === 404) {
       res = await fetch(`${BASE}/contacts/${encodeURIComponent(id)}`, {
         method: "PUT",
@@ -116,7 +113,7 @@ export const upsertContact = async (form, id) => {
     const updated = await jsonOrThrow(res);
     return normalizeContact(updated);
   } else {
-    // CREATE (ya lo tenías OK)
+    
     await ensureAgenda();
     const res = await fetch(
       `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts`,
@@ -131,17 +128,18 @@ export const upsertContact = async (form, id) => {
   }
 };
 
-
+// DELETE
+// Funcion que borra un contacto mediante DELETE
 export const deleteContact = async (id) => {
   if (!id) throw new Error("Falta el id del contacto.");
 
-  // 1) Intento principal: por agenda (es el que suele funcionar en este playground)
+  
   let res = await fetch(
     `${BASE}/agendas/${encodeURIComponent(AGENDA_SLUG)}/contacts/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
 
-  // 2) Fallback: por /contacts/:id
+
   if (res.status === 404) {
     res = await fetch(`${BASE}/contacts/${encodeURIComponent(id)}`, {
       method: "DELETE",

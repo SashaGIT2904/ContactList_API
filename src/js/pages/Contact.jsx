@@ -1,22 +1,22 @@
-// Página Contact: lista contactos, permite borrar y navegar a crear/editar.
+//Páginas de contactos
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ContactCard from "../components/ContactCard.jsx";
 import { getContacts, deleteContact } from "../api.js";
 
 const Contact = () => {
-  // Estado de la lista, carga y errores
+  // Estados de contacto, cargando y error
   const [contactos, setContactos] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  // Trae los contactos desde la API (y maneja spinner/errores)
+  // Funcion que carga la lista de contactos
   const cargar = async () => {
     setCargando(true);
     setError("");
     try {
-      const list = await getContacts(); // GET a la agenda
+      const list = await getContacts();
       setContactos(list);
     } catch (e) {
       setError(e.message || "Error al cargar contactos");
@@ -25,7 +25,7 @@ const Contact = () => {
     }
   };
 
-  // Borrar un contacto por id (pide confirmación y refresca la lista)
+  //Funcion que borra un contacto
   const onDelete = async (id) => {
     if (!id) return;
     if (!window.confirm("¿Seguro que quieres borrar este contacto?")) return;
@@ -42,12 +42,12 @@ const Contact = () => {
     navigate(`/edit/${c.id}`, { state: { contact: c } });
   };
 
-  // Al montar la vista, cargar contactos una vez
+  // Cargar la lista de contactos
   useEffect(() => {
     cargar();
-  }, []);
+  }, []); // [] para que se ejecute solo una vez
 
-  // Render: título + botón “Add new” + mensajes + lista de tarjetas
+  // Pintar la pantalla de contactos
   return (
     <main className="bg-light min-vh-100 py-5">
       <div className="container">
@@ -55,13 +55,11 @@ const Contact = () => {
           <div className="col-12 col-md-10 col-lg-8">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h1 className="h4 m-0">📇 Contactos</h1>
-              {/* Navega al formulario de alta */}
+              {/* Botón para ir a la pantalla de edición */}
               <Link to="/new" className="btn btn-success">
                 Add new contact
               </Link>
             </div>
-
-            {/* Feedback de error y carga */}
             {error && <div className="alert alert-danger py-2">{error}</div>}
             {cargando && <div className="alert alert-info py-2">Cargando…</div>}
 
